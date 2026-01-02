@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createSupabaseServerClient } from "@/lib/supabase-server";
-import { enforceRateLimit } from "@/lib/rate-limit";
+import { createSupabaseServerClient } from "../../lib/supabase-server";
+import { enforceRateLimit } from "../../lib/rate-limit";
 
 export function getClientIp(req: NextRequest): string {
-  // NextRequest.ip is not guaranteed / not typed in Next 15 in all runtimes.
-  // Derive from standard proxy headers.
   const xff = req.headers.get("x-forwarded-for");
   if (xff) {
     const first = xff.split(",")[0]?.trim();
