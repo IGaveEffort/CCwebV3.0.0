@@ -1,42 +1,48 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import { Card } from "../../../components/ui";
-import { supabaseBrowser } from "../../../lib/supabase-browser";
+export const dynamic = "force-dynamic";
+
+import { useEffect, useState } from "react";
+import { authHeader } from "../_auth";
+
+type Snapshot = Record<string, unknown> | null;
 
 export default function AdminPage() {
-  const supabase = useMemo(() => supabaseBrowser(), []);
-  const [role, setRole] = useState<string>("");
-  const [snapshot, setSnapshot] = useState<any>(null);
-
-  async function authHeader() {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setRole(data.user?.user_metadata?.role ?? ""));
-  }, [supabase]);
+  const [snapshot, setSnapshot] = useState<Snapshot>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const res = await fetch("/api/admin/overview", { headers: await authHeader() });
-      const data = await res.json();
-      setSnapshot(data);
+      try {
+        const headers = await authHeader();
+        const res = await fetch("/api/admin/overview", { headers });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error ?? "Request failed");
+        setSnapshot(data);
+      } catch (e: any) {
+        setError(e?.message ?? "Unknown error");
+      }
     })();
   }, []);
 
-  if (role !== "admin") return <div>Forbidden</div>;
-
   return (
-    <div className="space-y-4">
-      <div className="text-2xl font-black">Admin</div>
-      <Card className="p-6">
-        <div className="text-lg font-extrabold">Overview</div>
-        <pre className="mt-3 overflow-auto rounded-xl border border-ink/10 bg-white/60 p-3 text-xs">
-{JSON.stringify(snapshot, null, 2)}
+    <div style={{ padding: 24 }}>
+      <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>Admin Overview</h1>
+
+      {error ? (
+        <p style={{ color: "crimson" }}>{error}</p>
+      ) : (
+        <pre
+          style={{
+            background: "#fff",
+            border: "1px solid rgba(0,0,0,0.08)",
+            padding: 16,
+            borderRadius: 12,
+            overflow: "auto"
+          }}
+        >
+          {JSON.stringify(snapshot, null, 2)}
         </pre>
-      </Card>
+      )}
     </div>
   );
 }

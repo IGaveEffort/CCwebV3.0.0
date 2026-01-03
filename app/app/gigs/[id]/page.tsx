@@ -1,112 +1,126 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+export const dynamic = "force-dynamic";
+
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Card, Button } from "../../../../components/ui";
-import { supabaseBrowser } from "../../../../lib/supabase-browser";
+import { authHeader } from "../../_auth";
 
-export default function GigDetail() {
-  const { id } = useParams<{ id: string }>();
-  const supabase = useMemo(() => supabaseBrowser(), []);
+export default function GigDetailPage() {
+  const params = useParams<{ id: string }>();
+  const id = params?.id;
+
   const [gig, setGig] = useState<any>(null);
-  const [role, setRole] = useState<string>("student");
-  const [status, setStatus] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
 
-  async function authHeader() {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    return token ? { Authorization: `Bearer ${token}` } : {};
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+
+  async function load(gigId: string) {
+    try {
+      const res = await fetch(`/api/gigs/${gigId}`, { headers: await authHeader() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to load gig");
+
+      setGig(data.gig ?? null);
+      setTitle(data.gig?.title ?? "");
+      setDescription(data.gig?.description ?? "");
+      setError(null);
+    } catch (e: any) {
+      setError(e?.message ?? "Unknown error");
+    }
   }
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setRole(data.user?.user_metadata?.role ?? "student"));
-  }, [supabase]);
-
-  useEffect(() => {
-    (async () => {
-      const res = await fetch(`/api/gigs/${id}`, { headers: await authHeader() });
-      const data = await res.json();
-      setGig(data.gig);
-      setStatus(data.myApplication?.status ?? "");
-    })();
+    if (typeof id === "string" && id.length) load(id);
   }, [id]);
 
-  async function apply() {
-    const res = await fetch(`/api/applications`, {
-      method: "POST",
+  async function save() {
+    if (typeof id !== "string" || !id) return;
+
+    const res = await fetch(`/api/gigs/${id}`, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json", ...(await authHeader()) },
-      body: JSON.stringify({ gig_id: id }),
+      body: JSON.stringify({ title, description })
     });
-    const data = await res.json();
-    if (res.ok) setStatus(data.application.status);
-    else alert(data.error ?? "Error");
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data?.error ?? "Save failed");
+      return;
+    }
+    await load(id);
   }
 
-  if (!gig) return <div>Loading…</div>;
+  async function remove() {
+    if (typeof id !== "string" || !id) return;
+
+    const res = await fetch(`/api/gigs/${id}`, {
+      method: "DELETE",
+      headers: await authHeader()
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data?.error ?? "Delete failed");
+      return;
+    }
+
+    window.location.href = "/app/gigs";
+  }
+
+  if (error) return <div style={{ padding: 24, color: "crimson" }}>{error}</div>;
+  if (!gig) return <div style={{ padding: 24 }}>Loading...</div>;
 
   return (
-    <div className="space-y-4">
-      <Card className="p-6">
-        <div className="text-2xl font-black">{gig.title}</div>
-        <div className="mt-2 text-sm text-ink/70">{gig.description}</div>
-        <div className="mt-3 text-sm">Budget: <span className="font-bold">${gig.budget}</span></div>
+    <div style={{ padding: 24, display: "grid", gap: 12, maxWidth: 760 }}>
+      <h1 style={{ fontSize: 22, fontWeight: 800 }}>Gig</h1>
 
-        {role === "student" && (
-          <div className="mt-4">
-            {status ? (
-              <div className="text-sm">Application status: <span className="font-bold">{status}</span></div>
-            ) : (
-              <Button onClick={apply}>Apply</Button>
-            )}
-          </div>
-        )}
-      </Card>
+      <label style={label()}>
+        Title
+        <input value={title} onChange={(e) => setTitle(e.target.value)} style={input()} />
+      </label>
 
-      <Card className="p-6">
-        <div className="text-lg font-extrabold">Applications</div>
-        <div className="mt-3 space-y-2 text-sm">
-          {(gig.applications ?? []).map((a: any) => (
-            <div key={a.id} className="flex items-center justify-between rounded-xl border border-ink/10 bg-white/60 p-3">
-              <div>
-                <div className="font-semibold">{a.student_email}</div>
-                <div className="text-xs text-ink/60">status: {a.status}</div>
-              </div>
-              {role === "employer" && (
-                <div className="flex gap-2">
-                  <ActionButton gigId={id} appId={a.id} action="accept" />
-                  <ActionButton gigId={id} appId={a.id} action="decline" />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </Card>
+      <label style={label()}>
+        Description
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          style={{ ...input(), minHeight: 140 }}
+        />
+      </label>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={save} style={btn()}>
+          Save
+        </button>
+        <button onClick={remove} style={btn()}>
+          Delete
+        </button>
+      </div>
     </div>
   );
 }
 
-function ActionButton({ gigId, appId, action }: { gigId: string; appId: string; action: "accept" | "decline" }) {
-  const supabase = useMemo(() => supabaseBrowser(), []);
-  async function authHeader() {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
-  async function go() {
-    const res = await fetch(`/api/applications/${appId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", ...(await authHeader()) },
-      body: JSON.stringify({ action }),
-    });
-    const data = await res.json();
-    if (!res.ok) alert(data.error ?? "Error");
-    location.reload();
-  }
-  return (
-    <button
-      className={`rounded-xl px-3 py-1 text-xs font-bold border ${action === "accept" ? "bg-accent/35 border-accent" : "bg-white/70 border-ink/15"}`}
-      onClick={go}
-    >
-      {action}
-    </button>
-  );
+function label(): React.CSSProperties {
+  return { display: "grid", gap: 6, fontWeight: 800 };
+}
+
+function input(): React.CSSProperties {
+  return {
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid rgba(0,0,0,0.15)",
+    background: "#fff",
+    fontWeight: 600
+  };
+}
+
+function btn(): React.CSSProperties {
+  return {
+    padding: "10px 14px",
+    borderRadius: 10,
+    border: "1px solid rgba(0,0,0,0.12)",
+    background: "#fff",
+    fontWeight: 800
+  };
 }

@@ -18,32 +18,38 @@ export function getClientIp(req: NextRequest): string {
   return "unknown";
 }
 
+function retryAfterSecondsFromReset(reset: number): number {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const diff = reset - nowSec;
+  return diff > 0 ? diff : 1;
+}
+
 export async function withApiGuards(req: NextRequest) {
   const ip = getClientIp(req);
   const key = `api:${req.nextUrl.pathname}:${ip}`;
 
   const rl = await enforceRateLimit(key);
   if (!rl.ok) {
+    const retryAfter = retryAfterSecondsFromReset(rl.reset);
     return {
       ok: false as const,
       res: NextResponse.json(
         { error: "rate_limited" },
-        { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
-      ),
+        { status: 429, headers: { "Retry-After": String(retryAfter) } }
+      )
     };
   }
 
-  const supabase = createSupabaseServerClient();
-
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
-    error,
+    error
   } = await supabase.auth.getUser();
 
   if (error || !user) {
     return {
       ok: false as const,
-      res: NextResponse.json({ error: "unauthorized" }, { status: 401 }),
+      res: NextResponse.json({ error: "unauthorized" }, { status: 401 })
     };
   }
 

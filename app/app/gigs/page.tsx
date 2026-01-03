@@ -1,81 +1,115 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import { Card, Button, Input, Textarea } from "../../../components/ui";
-import { supabaseBrowser } from "../../../lib/supabase-browser";
+export const dynamic = "force-dynamic";
 
-type Gig = { id: string; title: string; description: string; budget: number; created_at: string };
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { Card } from "../../../components/ui";
+import { authHeader } from "../_auth";
 
 export default function GigsPage() {
-  const supabase = useMemo(() => supabaseBrowser(), []);
-  const [role, setRole] = useState<string>("student");
-  const [gigs, setGigs] = useState<Gig[]>([]);
+  const [gigs, setGigs] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [budget, setBudget] = useState("150");
-  const [msg, setMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setRole(data.user?.user_metadata?.role ?? "student"));
-  }, [supabase]);
 
   async function load() {
-    const res = await fetch("/api/gigs", { headers: await authHeader() });
-    const data = await res.json();
-    setGigs(data.gigs ?? []);
+    try {
+      const res = await fetch("/api/gigs", { headers: await authHeader() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to load gigs");
+      setGigs(data.gigs ?? []);
+    } catch (e: any) {
+      setError(e?.message ?? "Unknown error");
+    }
   }
 
-  async function authHeader() {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
-
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   async function createGig() {
-    setMsg(null);
-    const res = await fetch("/api/gigs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(await authHeader()) },
-      body: JSON.stringify({ title, description, budget: Number(budget) }),
-    });
-    const data = await res.json();
-    if (!res.ok) setMsg(data.error ?? "Error");
-    setTitle(""); setDescription(""); setBudget("150");
-    await load();
+    try {
+      const res = await fetch("/api/gigs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
+        body: JSON.stringify({
+          title,
+          description,
+          status: "open",
+          pay_cents: 0
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Create failed");
+
+      setTitle("");
+      setDescription("");
+      await load();
+    } catch (e: any) {
+      alert(e?.message ?? "Create failed");
+    }
   }
 
   return (
-    <div className="space-y-4">
-      <div className="text-2xl font-black">Gigs</div>
+    <div style={{ padding: 24 }}>
+      <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>Gigs</h1>
 
-      {role === "employer" && (
-        <Card className="p-5">
-          <div className="text-lg font-extrabold">Post a gig</div>
-          <div className="mt-3 grid gap-3">
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Gig title" />
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe deliverables, timeline, target campus, etc." rows={4} />
-            <Input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="Budget (USD)" />
-            {msg && <div className="text-sm text-red-700">{msg}</div>}
-            <Button disabled={!title || !description} onClick={createGig}>Publish</Button>
-          </div>
-        </Card>
-      )}
+      {error ? <p style={{ color: "crimson" }}>{error}</p> : null}
 
-      <div className="grid gap-3">
+      <div style={{ display: "grid", gap: 8, maxWidth: 720, marginBottom: 16 }}>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Gig title"
+          style={input()}
+        />
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Gig description"
+          style={{ ...input(), minHeight: 100 }}
+        />
+        <button onClick={createGig} style={btn()}>
+          Create Gig
+        </button>
+      </div>
+
+      <div style={{ display: "grid", gap: 12 }}>
         {gigs.map((g) => (
-          <Card key={g.id} className="p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-lg font-extrabold">{g.title}</div>
-                <div className="mt-1 text-sm text-ink/70">{g.description}</div>
-                <div className="mt-2 text-xs text-ink/60">Budget: ${g.budget}</div>
+          <Card key={g.id}>
+            <div style={{ padding: 16, display: "grid", gap: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <div style={{ fontWeight: 800 }}>{g.title}</div>
+                <Link href={`/app/gigs/${g.id}`} style={{ fontWeight: 800, textDecoration: "none" }}>
+                  Open →
+                </Link>
               </div>
-              <a className="underline text-sm" href={`/app/gigs/${g.id}`}>Open</a>
+              <div style={{ opacity: 0.85 }}>{g.description}</div>
+              <div style={{ opacity: 0.75, fontSize: 12 }}>Status: {g.status}</div>
             </div>
           </Card>
         ))}
       </div>
     </div>
   );
+}
+
+function input(): React.CSSProperties {
+  return {
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid rgba(0,0,0,0.15)",
+    background: "#fff"
+  };
+}
+
+function btn(): React.CSSProperties {
+  return {
+    padding: "10px 14px",
+    borderRadius: 10,
+    border: "1px solid rgba(0,0,0,0.12)",
+    background: "#fff",
+    fontWeight: 800
+  };
 }
