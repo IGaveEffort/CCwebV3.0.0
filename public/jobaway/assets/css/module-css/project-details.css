@@ -1,0 +1,98 @@
+
+/** project-details **/
+
+.project-details{
+  position: relative;
+}
+
+.project-details-content{
+  position: relative;
+  display: block;
+}
+
+.project-details-content h2{
+  position: relative;
+  display: inline-block;
+  font-size: 40px;
+  line-height: 50px;
+  font-weight: 700;
+  color: #051d3e;
+  margin-bottom: 22px;
+}
+
+.project-details-content p{
+  line-height: 28px;
+}
+
+.project-details-content .content-one p{
+  margin-bottom: 28px;
+}
+
+.project-details-content .content-one p:last-child{
+  margin-bottom: 0px;
+}
+
+.project-details-content .content-one{
+  margin-bottom: 36px;
+}
+
+.project-details-content h3{
+  display: block;
+  font-size: 28px;
+  line-height: 36px;
+  color: #051d3e;
+  font-weight: 700;
+  margin-bottom: 15px;
+}
+
+.project-details-content .content-two p{
+  margin-bottom: 28px;
+}
+
+.project-details-content blockquote{
+  position: relative;
+  display: block;
+  margin: 0px;
+  padding-top: 6px;
+}
+
+.project-details-content blockquote .icon-box{
+  position: relative;
+  display: inline-block;
+  margin-bottom: 10px;
+}
+
+.project-details-content .content-two blockquote p{
+  color: #6e6e6e;
+  font-style: italic;
+  margin-bottom: 12px;
+}
+
+.project-details-content blockquote span{
+  position: relative;
+  display: block;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+  color: #fd4a36;
+}
+
+.project-details-content .content-two{
+  margin-bottom: 42px;
+}
+
+.project-details .image-box{
+  position: relative;
+  display: block;
+  margin-top: 11px;
+}
+
+.project-details .image-box .image{
+  position: relative;
+  display: block;
+  margin-bottom: 30px;
+}
+
+.project-details .image-box img{
+  width: 100%;
+}
