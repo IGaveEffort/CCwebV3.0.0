@@ -1,183 +1,102 @@
 "use client";
-export const dynamic = "force-dynamic";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "../../lib/supabase-browser";
 
-export default function AuthPage() {
-  return (
-    <Suspense fallback={<div style={{ padding: 24 }}>Loading...</div>}>
-      <AuthInner />
-    </Suspense>
-  );
-}
-
 function AuthInner() {
-  const sp = useSearchParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = useMemo(() => supabaseBrowser(), []);
-  const [mode, setMode] = useState<"login" | "signup">("login");
 
+  const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"student" | "employer">("student");
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    const m = sp.get("mode");
-    if (m === "signup" || m === "login") setMode(m);
-  }, [sp]);
+    // If already authed, redirect to app.
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) router.push("/app");
+    });
 
-  async function submit() {
+    // Optional: ?mode=signup
+    const m = searchParams.get("mode");
+    if (m === "signup") setMode("signup");
+  }, [router, supabase, searchParams]);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
     setMsg(null);
-
-    if (!email || !password) {
-      setMsg("Email and password required.");
-      return;
-    }
 
     if (mode === "signup") {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: { role }
-        }
+        options: { emailRedirectTo: `${location.origin}/auth` },
       });
-      if (error) setMsg(error.message);
-      else setMsg("Check your email to confirm signup (if enabled).");
+      if (error) return setMsg(error.message);
+      setMsg("Check your email to confirm your account.");
       return;
     }
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setMsg(error.message);
-      return;
-    }
-
-    window.location.href = "/app";
-  }
-
-  async function signOut() {
-    await supabase.auth.signOut();
-    setMsg("Signed out.");
+    if (error) return setMsg(error.message);
+    router.push("/app");
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 520, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 26, fontWeight: 900, marginBottom: 8 }}>Campus Cliques</h1>
-      <p style={{ opacity: 0.8, marginBottom: 16 }}>
-        {mode === "login" ? "Log in to your account" : "Create your account"}
-      </p>
+    <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4 py-12">
+      <h1 className="text-3xl font-extrabold text-[#12283f]">{mode === "login" ? "Log in" : "Create account"}</h1>
+      <p className="mt-2 text-sm opacity-75">Access the Campus Cliques platform.</p>
 
-      <div
-        style={{
-          display: "grid",
-          gap: 10,
-          padding: 14,
-          borderRadius: 14,
-          border: "1px solid rgba(0,0,0,0.12)",
-          background: "#fff"
-        }}
-      >
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={() => setMode("login")}
-            style={tab(mode === "login")}
-            type="button"
-          >
-            Login
-          </button>
-          <button
-            onClick={() => setMode("signup")}
-            style={tab(mode === "signup")}
-            type="button"
-          >
-            Sign up
-          </button>
-        </div>
-
-        {mode === "signup" ? (
-          <label style={label()}>
-            Account type
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as any)}
-              style={input()}
-            >
-              <option value="student">Student</option>
-              <option value="employer">Employer</option>
-            </select>
-          </label>
-        ) : null}
-
-        <label style={label()}>
-          Email
+      <form onSubmit={onSubmit} className="mt-8 space-y-4 rounded-2xl border border-[#12283f]/10 bg-white p-6">
+        <div>
+          <label className="text-sm font-semibold">Email</label>
           <input
+            className="mt-1 w-full rounded-xl border border-[#12283f]/20 px-3 py-2 text-sm outline-none focus:border-[#a79dfd]"
+            type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            style={input()}
-            type="email"
-            autoComplete="email"
+            required
           />
-        </label>
+        </div>
 
-        <label style={label()}>
-          Password
+        <div>
+          <label className="text-sm font-semibold">Password</label>
           <input
+            className="mt-1 w-full rounded-xl border border-[#12283f]/20 px-3 py-2 text-sm outline-none focus:border-[#a79dfd]"
+            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            style={input()}
-            type="password"
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            required
           />
-        </label>
+        </div>
 
-        <button onClick={submit} style={btn()} type="button">
-          {mode === "login" ? "Login" : "Create account"}
+        <button className="w-full rounded-xl bg-[#12283f] px-4 py-3 text-sm font-semibold text-white hover:opacity-90">
+          {mode === "login" ? "Log in" : "Sign up"}
         </button>
 
-        <button onClick={signOut} style={btn()} type="button">
-          Sign out
-        </button>
+        {msg ? <div className="text-sm font-semibold">{msg}</div> : null}
 
-        {msg ? <p style={{ margin: 0, color: "crimson" }}>{msg}</p> : null}
-      </div>
+        <div className="flex justify-between text-xs opacity-80">
+          <button
+            type="button"
+            className="underline underline-offset-4"
+            onClick={() => setMode(mode === "login" ? "signup" : "login")}
+          >
+            {mode === "login" ? "Need an account?" : "Have an account?"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
 
-function label(): React.CSSProperties {
-  return { display: "grid", gap: 6, fontWeight: 800 };
-}
-
-function input(): React.CSSProperties {
-  return {
-    padding: 10,
-    borderRadius: 10,
-    border: "1px solid rgba(0,0,0,0.15)",
-    background: "#fff",
-    fontWeight: 600
-  };
-}
-
-function btn(): React.CSSProperties {
-  return {
-    padding: "10px 14px",
-    borderRadius: 10,
-    border: "1px solid rgba(0,0,0,0.12)",
-    background: "#fff",
-    fontWeight: 900
-  };
-}
-
-function tab(active: boolean): React.CSSProperties {
-  return {
-    padding: "10px 12px",
-    borderRadius: 10,
-    border: "1px solid rgba(0,0,0,0.12)",
-    background: active ? "rgba(0,0,0,0.05)" : "#fff",
-    fontWeight: 900,
-    flex: 1
-  };
+export default function AuthPage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-sm">Loading...</div>}>
+      <AuthInner />
+    </Suspense>
+  );
 }
